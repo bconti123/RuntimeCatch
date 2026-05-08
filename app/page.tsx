@@ -1,67 +1,223 @@
+import Link from "next/link";
+import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
+import { ChartCard } from "@/components/charts/ChartCard";
+import { EventsOverTimeChart } from "@/components/charts/EventsOverTimeChart";
+import { SeverityDistributionChart } from "@/components/charts/SeverityDistributionChart";
+import { EventsByServiceChart } from "@/components/charts/EventsByServiceChart";
+import { CategoryBreakdownChart } from "@/components/charts/CategoryBreakdownChart";
+import { DeploymentFrequencyChart } from "@/components/charts/DeploymentFrequencyChart";
+import {
+  ServiceStatusBadge,
+  EnvironmentBadge,
+  SeverityBadge,
+  IssueStatusBadge,
+} from "@/components/Badge";
+import { EmptyState } from "@/components/EmptyState";
+import { formatNumber, formatRelative } from "@/lib/format";
+import {
+  getCategoryBreakdown,
+  getDashboardStats,
+  getDeploymentFrequency,
+  getEventsByService,
+  getEventsOverTime,
+  getRecentIssues,
+  getSeverityDistribution,
+} from "@/lib/queries";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const [
+    stats,
+    overTime,
+    severity,
+    byService,
+    byCategory,
+    deploymentFreq,
+    recentIssues,
+  ] = await Promise.all([
+    getDashboardStats(),
+    getEventsOverTime(24),
+    getSeverityDistribution(),
+    getEventsByService(24),
+    getCategoryBreakdown(),
+    getDeploymentFrequency(7),
+    getRecentIssues(6),
+  ]);
+
   return (
-    <div className="flex flex-1 flex-col bg-zinc-50 font-sans text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <header className="border-b border-zinc-200 dark:border-zinc-800">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-emerald-500" aria-hidden />
-            <div>
-              <h1 className="text-lg font-semibold tracking-tight">RuntimeCatch</h1>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Runtime error tracking dashboard
-              </p>
-            </div>
-          </div>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-            scaffold
-          </span>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
-        <section className="mb-10">
-          <h2 className="text-2xl font-semibold tracking-tight">Overview</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Live counts will populate once the database and ingestion API are wired up.
-          </p>
+    <>
+      <PageHeader
+        title="Overview"
+        subtitle="Live runtime health across all services in the last 24 hours."
+      />
+      <div className="flex flex-1 flex-col gap-6 p-6">
+        <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard
+            label="Events (24h)"
+            value={formatNumber(stats.events24h)}
+            hint="ingested runtime events"
+          />
+          <StatCard
+            label="Open issues"
+            value={formatNumber(stats.openIssues)}
+            hint="grouped by fingerprint"
+            tone={stats.openIssues > 0 ? "warning" : "default"}
+          />
+          <StatCard
+            label="Critical alerts"
+            value={formatNumber(stats.criticalAlerts)}
+            hint="currently triggered"
+            tone={stats.criticalAlerts > 0 ? "danger" : "success"}
+          />
+          <StatCard
+            label="Healthy services"
+            value={`${stats.healthyServices} / ${stats.totalServices}`}
+            hint={`${stats.deployments7d} deploys in last 7d`}
+            tone={
+              stats.healthyServices === stats.totalServices
+                ? "success"
+                : "warning"
+            }
+          />
         </section>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Events (24h)" value="—" hint="awaiting ingestion" />
-          <StatCard label="Open issues" value="—" hint="awaiting database" />
-          <StatCard label="Affected services" value="—" hint="awaiting database" />
-          <StatCard label="Resolved (7d)" value="—" hint="awaiting database" />
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <ChartCard
+            title="Runtime events over time"
+            subtitle="Hourly buckets, last 24h"
+            className="lg:col-span-2"
+          >
+            <EventsOverTimeChart data={overTime} />
+          </ChartCard>
+          <ChartCard
+            title="Severity distribution"
+            subtitle="Last 24h"
+          >
+            <SeverityDistributionChart data={severity} />
+          </ChartCard>
         </section>
 
-        <section className="mt-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="rounded-lg border border-zinc-200 bg-white p-6 lg:col-span-2 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="text-sm font-semibold">Error volume</h3>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Recharts time-series goes here.
-            </p>
-            <div className="mt-6 flex h-48 items-center justify-center rounded-md border border-dashed border-zinc-300 text-xs text-zinc-400 dark:border-zinc-700">
-              chart placeholder
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <ChartCard
+            title="Runtime failures by service"
+            subtitle="Last 24h"
+            className="lg:col-span-2"
+          >
+            <EventsByServiceChart data={byService} />
+          </ChartCard>
+          <ChartCard
+            title="Error category breakdown"
+            subtitle="Last 24h"
+          >
+            <CategoryBreakdownChart data={byCategory} />
+          </ChartCard>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <ChartCard
+            title="Deployment frequency"
+            subtitle="Last 7 days, by environment"
+            className="lg:col-span-2"
+          >
+            <DeploymentFrequencyChart data={deploymentFreq} />
+          </ChartCard>
+
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-100">
+                Service health
+              </h3>
+              <Link
+                href="/services"
+                className="text-xs text-zinc-400 hover:text-zinc-200"
+              >
+                View all
+              </Link>
             </div>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="text-sm font-semibold">Recent issues</h3>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Latest grouped errors.
-            </p>
-            <ul className="mt-4 space-y-3 text-sm text-zinc-500 dark:text-zinc-400">
-              <li className="rounded-md border border-dashed border-zinc-300 px-3 py-4 text-center text-xs dark:border-zinc-700">
-                no data yet
-              </li>
+            <ul className="space-y-2">
+              {stats.services.slice(0, 6).map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between rounded-md border border-zinc-800/60 bg-zinc-950/40 px-3 py-2 text-sm"
+                >
+                  <Link
+                    href={`/services/${s.id}`}
+                    className="min-w-0 truncate font-mono text-xs text-zinc-300 hover:text-emerald-300"
+                  >
+                    {s.name}
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <EnvironmentBadge environment={s.environment} />
+                    <ServiceStatusBadge status={s.status} />
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         </section>
-      </main>
 
-      <footer className="border-t border-zinc-200 px-6 py-4 text-center text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        RuntimeCatch · MIT
-      </footer>
-    </div>
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/40">
+          <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-100">
+                Recent issues
+              </h3>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Most recently seen, grouped by fingerprint
+              </p>
+            </div>
+            <Link
+              href="/issues"
+              className="text-xs text-zinc-400 hover:text-zinc-200"
+            >
+              View all issues →
+            </Link>
+          </div>
+          {recentIssues.length === 0 ? (
+            <div className="p-5">
+              <EmptyState
+                title="No issues yet"
+                description="Issues will appear here once events are ingested. Run `npm run simulate` or POST to /api/events."
+              />
+            </div>
+          ) : (
+            <ul className="divide-y divide-zinc-800">
+              {recentIssues.map((issue) => {
+                const serviceName = issue.events[0]?.service.name;
+                return (
+                  <li key={issue.id}>
+                    <Link
+                      href={`/issues/${issue.id}`}
+                      className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-zinc-900/60"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-zinc-200">
+                          {issue.title}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                          {serviceName ? (
+                            <span className="font-mono">{serviceName}</span>
+                          ) : null}
+                          <span>·</span>
+                          <span>{issue.occurrenceCount} occurrences</span>
+                          <span>·</span>
+                          <span>last seen {formatRelative(issue.lastSeenAt)}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <IssueStatusBadge status={issue.status} />
+                        <SeverityBadge severity={issue.severity} />
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
+    </>
   );
 }

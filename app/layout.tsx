@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Sidebar } from "@/components/Sidebar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "RuntimeCatch",
-  description: "Catch runtime errors across your services in one place.",
+  description:
+    "Self-hostable observability platform for runtime errors, service health, and deployments.",
 };
 
 export default function RootLayout({
@@ -27,7 +29,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full bg-zinc-950 text-zinc-100">
+        <Sidebar />
+        <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      </body>
     </html>
   );
 }
