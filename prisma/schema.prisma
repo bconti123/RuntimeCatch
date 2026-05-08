@@ -1,0 +1,142 @@
+// RuntimeCatch — observability platform schema
+// PostgreSQL via Prisma 7
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+  OWNER
+}
+
+enum Environment {
+  PRODUCTION
+  STAGING
+  DEVELOPMENT
+}
+
+enum ServiceStatus {
+  HEALTHY
+  DEGRADED
+  DOWN
+}
+
+enum Severity {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum EventCategory {
+  RUNTIME_ERROR
+  API_LATENCY
+  PLAYBACK_ERROR
+  DEPLOYMENT
+  DATABASE
+  NETWORK
+  AUTH
+}
+
+enum IssueStatus {
+  OPEN
+  RESOLVED
+  MUTED
+  IGNORED
+}
+
+enum AlertStatus {
+  TRIGGERED
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+}
+
+model Service {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  environment Environment
+  status      ServiceStatus @default(HEALTHY)
+  createdAt   DateTime      @default(now())
+
+  events      RuntimeEvent[]
+  alerts      Alert[]
+  deployments Deployment[]
+}
+
+model RuntimeEvent {
+  id          String        @id @default(cuid())
+  serviceId   String
+  service     Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  severity    Severity
+  category    EventCategory
+  message     String
+  stackTrace  String?
+  metadata    Json?
+  fingerprint String
+  resolved    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+
+  issueId String?
+  issue   Issue?  @relation(fields: [issueId], references: [id], onDelete: SetNull)
+
+  @@index([serviceId, createdAt])
+  @@index([fingerprint])
+  @@index([category, createdAt])
+}
+
+model Issue {
+  id              String      @id @default(cuid())
+  title           String
+  fingerprint     String      @unique
+  severity        Severity
+  status          IssueStatus @default(OPEN)
+  occurrenceCount Int         @default(1)
+  firstSeenAt     DateTime    @default(now())
+  lastSeenAt      DateTime    @default(now())
+
+  events RuntimeEvent[]
+
+  @@index([status, lastSeenAt])
+}
+
+model Alert {
+  id          String      @id @default(cuid())
+  serviceId   String
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  title       String
+  severity    Severity
+  status      AlertStatus @default(TRIGGERED)
+  triggeredAt DateTime    @default(now())
+  resolvedAt  DateTime?
+
+  @@index([serviceId, status])
+  @@index([status, triggeredAt])
+}
+
+model Deployment {
+  id          String      @id @default(cuid())
+  serviceId   String
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  version     String
+  commitSha   String
+  environment Environment
+  deployedAt  DateTime    @default(now())
+
+  @@index([serviceId, deployedAt])
+}
