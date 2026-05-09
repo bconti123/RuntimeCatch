@@ -60,16 +60,62 @@ enum AlertStatus {
 }
 
 model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now())
+
+  projects Project[]
+  sessions Session[]
+}
+
+model Session {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  role      Role     @default(USER)
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  services Service[]
+  apiKeys  ApiKey[]
+
+  @@index([ownerId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  projectId  String
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String    @unique
+  prefix     String
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([projectId])
 }
 
 model Service {
   id          String        @id @default(cuid())
-  name        String        @unique
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
   environment Environment
   status      ServiceStatus @default(HEALTHY)
   createdAt   DateTime      @default(now())
@@ -77,6 +123,9 @@ model Service {
   events      RuntimeEvent[]
   alerts      Alert[]
   deployments Deployment[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
 }
 
 model RuntimeEvent {

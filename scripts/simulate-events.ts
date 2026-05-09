@@ -157,7 +157,7 @@ const SEVERITY_RANK: Record<Severity, number> = {
 };
 
 async function ingest(scenario: Scenario, occurredAt: Date) {
-  const service = await prisma.service.findUnique({
+  const service = await prisma.service.findFirst({
     where: { name: scenario.service },
   });
   if (!service) {

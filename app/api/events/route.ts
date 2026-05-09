@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { computeFingerprint, deriveIssueTitle } from "@/lib/fingerprint";
 import { prisma } from "@/lib/prisma";
+import { authenticateApiKey, touchApiKey } from "@/lib/api-keys";
 
 const SeverityEnum = z.enum([
   "DEBUG",
@@ -31,15 +32,26 @@ const EventPayload = z.object({
   occurredAt: z.iso.datetime().optional(),
 });
 
+function unauthorized(message: string) {
+  return NextResponse.json(
+    { error: message },
+    { status: 401, headers: { "WWW-Authenticate": "Bearer" } }
+  );
+}
+
 export async function POST(request: Request) {
+  const auth = await authenticateApiKey(request.headers.get("authorization"));
+  if (!auth) {
+    return unauthorized(
+      "Missing or invalid API key. Send `Authorization: Bearer rc_live_…`."
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const parsed = EventPayload.safeParse(body);
@@ -52,12 +64,14 @@ export async function POST(request: Request) {
   const payload = parsed.data;
 
   const service = await prisma.service.findUnique({
-    where: { name: payload.service },
+    where: {
+      projectId_name: { projectId: auth.projectId, name: payload.service },
+    },
   });
   if (!service) {
     return NextResponse.json(
       {
-        error: `Unknown service '${payload.service}'. Register the service first.`,
+        error: `Unknown service '${payload.service}' in this project. Create it under /services/new first.`,
       },
       { status: 404 }
     );
@@ -72,7 +86,9 @@ export async function POST(request: Request) {
       stackTrace: payload.stackTrace ?? undefined,
     });
 
-  const occurredAt = payload.occurredAt ? new Date(payload.occurredAt) : new Date();
+  const occurredAt = payload.occurredAt
+    ? new Date(payload.occurredAt)
+    : new Date();
 
   const result = await prisma.$transaction(async (tx) => {
     const issue = await tx.issue.upsert({
@@ -88,9 +104,7 @@ export async function POST(request: Request) {
       update: {
         lastSeenAt: occurredAt,
         occurrenceCount: { increment: 1 },
-        // Promote severity if a higher one comes in.
-        severity: bumpSeverity(payload.severity),
-        // Reopen if a new event arrives on a previously resolved issue.
+        severity: payload.severity,
         status: "OPEN",
       },
     });
@@ -115,6 +129,9 @@ export async function POST(request: Request) {
     return { issue, event };
   });
 
+  // Fire-and-forget: refresh the key's lastUsedAt without blocking the response.
+  void touchApiKey(auth.apiKeyId);
+
   return NextResponse.json(
     {
       eventId: result.event.id,
@@ -127,24 +144,11 @@ export async function POST(request: Request) {
   );
 }
 
-// We bump severity by writing back the new event's severity directly. Prisma
-// doesn't support `MAX(existing, new)` in a single update, so we approximate
-// by overwriting — fine because new events represent the current state.
-// To keep ranking deterministic, callers should pass the worst severity seen.
-function bumpSeverity(s: string) {
-  return s as
-    | "DEBUG"
-    | "INFO"
-    | "WARNING"
-    | "ERROR"
-    | "CRITICAL";
-}
-
 export async function GET() {
   return NextResponse.json(
     {
       ok: true,
-      hint: "POST a runtime event payload to /api/events",
+      hint: "POST a runtime event payload to /api/events with `Authorization: Bearer rc_live_…`",
       example: {
         service: "playback-service",
         severity: "CRITICAL",

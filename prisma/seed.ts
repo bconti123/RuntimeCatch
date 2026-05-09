@@ -1,4 +1,7 @@
 import "dotenv/config";
+import { createHash } from "node:crypto";
+import { scrypt as scryptCb, randomBytes } from "node:crypto";
+import { promisify } from "node:util";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   PrismaClient,
@@ -25,13 +28,36 @@ const minutesAgo = (m: number) => new Date(NOW - m * 60_000);
 const hoursAgo = (h: number) => new Date(NOW - h * 60 * 60_000);
 const daysAgo = (d: number) => new Date(NOW - d * 24 * 60 * 60_000);
 
+const scrypt = promisify(scryptCb) as (
+  password: string,
+  salt: Buffer,
+  keylen: number
+) => Promise<Buffer>;
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16);
+  const derived = await scrypt(password, salt, 64);
+  return `scrypt:${salt.toString("hex")}:${derived.toString("hex")}`;
+}
+
+const sha256 = (s: string) =>
+  createHash("sha256").update(s).digest("hex");
+
+// Stable demo API key — known plaintext so the README curl example just works.
+// In production, keys are generated server-side and the plaintext is shown once.
+const DEMO_API_KEY_PLAINTEXT = "rc_live_demo_key_for_local_testing_only";
+const DEMO_API_KEY_PREFIX = "rc_live_demo";
+
 async function main() {
-  console.log("Resetting observability tables…");
+  console.log("Resetting tables…");
   await prisma.runtimeEvent.deleteMany();
   await prisma.issue.deleteMany();
   await prisma.alert.deleteMany();
   await prisma.deployment.deleteMany();
   await prisma.service.deleteMany();
+  await prisma.apiKey.deleteMany();
+  await prisma.project.deleteMany();
+  await prisma.session.deleteMany();
   await prisma.user.deleteMany();
 
   console.log("Seeding users…");
@@ -41,6 +67,7 @@ async function main() {
         email: "owner@runtimecatch.dev",
         name: "Avery Chen",
         role: Role.OWNER,
+        passwordHash: await hashPassword("runtimecatch"),
       },
     }),
     prisma.user.create({
@@ -48,6 +75,7 @@ async function main() {
         email: "jordan@runtimecatch.dev",
         name: "Jordan Park",
         role: Role.ADMIN,
+        passwordHash: await hashPassword("runtimecatch"),
       },
     }),
     prisma.user.create({
@@ -55,14 +83,36 @@ async function main() {
         email: "sam@runtimecatch.dev",
         name: "Sam Rivera",
         role: Role.USER,
+        passwordHash: await hashPassword("runtimecatch"),
       },
     }),
   ]);
+
+  console.log("Seeding project…");
+  const project = await prisma.project.create({
+    data: {
+      slug: "runtimecatch-demo",
+      name: "RuntimeCatch Demo",
+      ownerId: owner.id,
+    },
+  });
+
+  console.log("Seeding demo API key…");
+  await prisma.apiKey.create({
+    data: {
+      projectId: project.id,
+      name: "demo-key (local dev)",
+      prefix: DEMO_API_KEY_PREFIX,
+      keyHash: sha256(DEMO_API_KEY_PLAINTEXT),
+      lastUsedAt: minutesAgo(15),
+    },
+  });
 
   console.log("Seeding services…");
   const services = await Promise.all([
     prisma.service.create({
       data: {
+        projectId: project.id,
         name: "video-streaming-api",
         environment: Environment.PRODUCTION,
         status: ServiceStatus.DEGRADED,
@@ -70,6 +120,7 @@ async function main() {
     }),
     prisma.service.create({
       data: {
+        projectId: project.id,
         name: "playback-service",
         environment: Environment.PRODUCTION,
         status: ServiceStatus.DOWN,
@@ -77,6 +128,7 @@ async function main() {
     }),
     prisma.service.create({
       data: {
+        projectId: project.id,
         name: "auth-service",
         environment: Environment.PRODUCTION,
         status: ServiceStatus.HEALTHY,
@@ -84,6 +136,7 @@ async function main() {
     }),
     prisma.service.create({
       data: {
+        projectId: project.id,
         name: "payments-api",
         environment: Environment.PRODUCTION,
         status: ServiceStatus.HEALTHY,
@@ -91,6 +144,7 @@ async function main() {
     }),
     prisma.service.create({
       data: {
+        projectId: project.id,
         name: "recommendations-engine",
         environment: Environment.STAGING,
         status: ServiceStatus.DEGRADED,
@@ -98,6 +152,7 @@ async function main() {
     }),
     prisma.service.create({
       data: {
+        projectId: project.id,
         name: "web-frontend",
         environment: Environment.PRODUCTION,
         status: ServiceStatus.HEALTHY,
@@ -429,6 +484,8 @@ async function main() {
 
   const counts = await Promise.all([
     prisma.user.count(),
+    prisma.project.count(),
+    prisma.apiKey.count(),
     prisma.service.count(),
     prisma.deployment.count(),
     prisma.issue.count(),
@@ -440,11 +497,20 @@ async function main() {
     [
       "Seed complete:",
       `  users: ${counts[0]} (owner=${owner.email}, admin=${engineer.email}, user=${oncall.email})`,
-      `  services: ${counts[1]}`,
-      `  deployments: ${counts[2]}`,
-      `  issues: ${counts[3]}`,
-      `  runtime events: ${counts[4]}`,
-      `  alerts: ${counts[5]}`,
+      `  projects: ${counts[1]}`,
+      `  api keys: ${counts[2]}`,
+      `  services: ${counts[3]}`,
+      `  deployments: ${counts[4]}`,
+      `  issues: ${counts[5]}`,
+      `  runtime events: ${counts[6]}`,
+      `  alerts: ${counts[7]}`,
+      "",
+      "Demo login:",
+      "  email:    owner@runtimecatch.dev",
+      "  password: runtimecatch",
+      "",
+      "Demo API key (plaintext, dev only):",
+      `  ${DEMO_API_KEY_PLAINTEXT}`,
     ].join("\n")
   );
 }

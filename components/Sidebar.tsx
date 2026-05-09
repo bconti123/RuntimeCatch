@@ -15,9 +15,18 @@ const NAV = [
     label: "Issues",
     match: (p: string) => p === "/issues" || p.startsWith("/issues/"),
   },
+  {
+    href: "/settings",
+    label: "Settings",
+    match: (p: string) => p === "/settings" || p.startsWith("/settings/"),
+  },
 ];
 
-export function Sidebar() {
+export function Sidebar({
+  user,
+}: {
+  user: { name: string; email: string };
+}) {
   const pathname = usePathname();
 
   return (
@@ -54,12 +63,26 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-auto rounded-md border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-500">
-        <div className="flex items-center gap-2">
-          <span className="block h-2 w-2 rounded-full bg-emerald-400" />
-          <span className="text-zinc-300">Postgres connected</span>
+      <div className="mt-auto flex flex-col gap-3">
+        <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-3 text-xs">
+          <div className="truncate font-medium text-zinc-200">{user.name}</div>
+          <div className="truncate text-zinc-500">{user.email}</div>
+          <form action="/api/auth/logout" method="post" className="mt-2">
+            <button
+              type="submit"
+              className="text-[11px] text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
+            >
+              Sign out
+            </button>
+          </form>
         </div>
-        <div className="mt-1">localhost:5433</div>
+        <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-500">
+          <div className="flex items-center gap-2">
+            <span className="block h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="text-zinc-300">Postgres connected</span>
+          </div>
+          <div className="mt-1">localhost:5435</div>
+        </div>
       </div>
     </aside>
   );

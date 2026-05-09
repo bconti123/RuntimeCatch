@@ -53,6 +53,14 @@ export default async function ServicesPage() {
       <PageHeader
         title="Services"
         subtitle={`${services.length} services across production, staging, and development`}
+        actions={
+          <Link
+            href="/services/new"
+            className="rounded-md bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-500/40 hover:bg-emerald-500/25"
+          >
+            New service
+          </Link>
+        }
       />
       <div className="flex flex-1 flex-col gap-6 p-6">
         {services.length === 0 ? (
