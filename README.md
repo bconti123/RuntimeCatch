@@ -1,6 +1,6 @@
 # RuntimeCatch
 
-A self-hostable observability platform for runtime errors, service health, and deployments. Think of it as a single-binary, single-developer answer to "where did this break and why?"
+A self-hostable observability platform for runtime errors, service health, and deployments. Think of it as a self-contained, single-developer answer to "where did this break and why?"
 
 Built with **Next.js 16** (App Router + Server Components + Server Actions), **Prisma 7** + **PostgreSQL 16**, **TypeScript**, **Tailwind v4**, and **Zod**. Auth is credentials-based; ingestion is project-scoped via hashed API keys. No third-party auth or telemetry SDKs — just `node:crypto`.
 
@@ -8,27 +8,25 @@ Built with **Next.js 16** (App Router + Server Components + Server Actions), **P
 
 ## Screenshots
 
-> Drop captures into `public/screenshots/` using the filenames below.
-
 | | |
 | --- | --- |
 | ![Dashboard](public/screenshots/dashboard.png) | ![Issue detail](public/screenshots/issue-detail.png) |
 | **Dashboard** — stat cards, hourly event volume, severity / category breakdowns, recent issues | **Issue detail** — stack trace, metadata, deploy correlation, resolve / mute / reopen |
 | ![Services](public/screenshots/services.png) | ![API keys](public/screenshots/api-keys.png) |
-| **Services** — health, last deploy, 24h event volume per service | **API keys** — create-once flow, SHA-256 stored, project-scoped, revocable |
+| **Services** — health, last deploy, 24h event volume per service | **API keys** — create-once flow, SHA-256 hashed at rest, project-scoped, revocable |
 | ![Login](public/screenshots/login.png) | ![Service detail](public/screenshots/service-detail.png) |
 | **Login** — credentials auth (scrypt + opaque session cookie) | **Service detail** — timeline, alerts, deployment history |
 
-### Screenshots to capture
+---
 
-These are the six shots most worth recording. Save each one at the path shown above (PNG, ~1600px wide is plenty).
+## Technical highlights
 
-1. **`dashboard.png`** — the seeded dashboard at `/` after `npm run db:seed`. Best taken with the simulator running for ~30 seconds first (`npm run simulate`) so the timeline has movement.
-2. **`issue-detail.png`** — `/issues/[id]` for the `TypeError: cannot read properties of undefined (reading 'manifest')` issue from the seed. Stack trace + metadata + deploy correlation are the technical sell here.
-3. **`services.png`** — `/services` showing the table with mixed health states (DEGRADED / DOWN / HEALTHY) and last-deploy column populated.
-4. **`api-keys.png`** — `/settings/api-keys` immediately after creating a key, while the green "Copy this key now — it won't be shown again" panel is visible. This screenshot tells the security story instantly.
-5. **`login.png`** — `/login` with the demo-credentials hint card visible.
-6. **`service-detail.png`** — `/services/[id]` for `playback-service`. Event timeline + alerts + deployments stacked.
+- Credentials-based authentication with hashed passwords and httpOnly session cookies
+- Project-scoped API keys with SHA-256 stored hashes
+- Bearer-protected event ingestion API
+- Zod request validation and deterministic issue fingerprinting
+- Prisma/PostgreSQL data model for services, issues, alerts, deployments, and runtime events
+- Docker Compose local development environment
 
 ---
 
@@ -63,26 +61,10 @@ Then in the browser:
        "metadata": { "region": "us-west", "device": "smart-tv" }
      }'
    ```
-   Then drop the `Bearer` header — the same request returns `401`.
+   Then drop the `Authorization` header — the same request returns `401`.
 6. **Manage keys.** Visit `/settings/api-keys`, create a key, copy it (shown once), revoke it. Visit `/services/new` to register a new service under the demo project.
 
-Total runtime: one Postgres container + one Next.js dev server. No cloud, no signup, no API keys to provision.
-
----
-
-## Technical highlights
-
-**Credentials auth, no library.** Passwords are hashed with `node:crypto` `scrypt` + 16-byte random salt, compared with `timingSafeEqual`. Login always runs the verifier even when the user doesn't exist, to avoid a trivial timing oracle on user existence. Sessions are 32-byte random tokens stored in a `Session` table and an `httpOnly`, `SameSite=Lax` cookie — logout deletes the row and clears the cookie. Auth gating lives in the `app/(authed)/` route group's layout, which calls `requireUser()` on every render; the `/login` route sits outside that group so it stays public. See `lib/auth.ts`.
-
-**Project-scoped API keys.** Each `ApiKey` belongs to a `Project`, and the plaintext is generated server-side as `rc_live_<48 hex>`. Only `keyHash = sha256(plaintext)` and a 12-character `prefix` are persisted — the plaintext is shown once at creation time. Revocation sets `revokedAt` (preserves audit trail) and excludes the row from lookups. Keys can never be re-displayed. See `lib/api-keys.ts` and `app/(authed)/settings/api-keys/`.
-
-**Bearer-protected ingestion.** `POST /api/events` reads `Authorization: Bearer rc_live_…`, hashes the token, and looks it up by `keyHash`. The matched key's `projectId` scopes the service lookup — `service: "<name>"` must resolve via `(projectId, name)` or the request is rejected with `404`. There is no global service namespace. `lastUsedAt` is bumped fire-and-forget so it doesn't block the response. See `app/api/events/route.ts`.
-
-**Fingerprint-based issue grouping.** Every event is fingerprinted from `service + category + first stack frame` (or normalized message if no stack). The ingestion handler runs a single `prisma.$transaction` that `upsert`s the `Issue` keyed on `fingerprint` (incrementing `occurrenceCount`, advancing `lastSeenAt`, reopening if previously resolved) and inserts the `RuntimeEvent` linked to that issue. The issues page is just `findMany` with severity / status filters; no separate aggregation pipeline. See `lib/fingerprint.ts` and `app/api/events/route.ts`.
-
-**Prisma + PostgreSQL schema design.** Eight models (`User`, `Session`, `Project`, `ApiKey`, `Service`, `RuntimeEvent`, `Issue`, `Alert`, `Deployment`) with deliberate composite indexes — `RuntimeEvent` is indexed on `(serviceId, createdAt)`, `(category, createdAt)`, and `fingerprint`; `Issue` on `(status, lastSeenAt)`; `Alert` on `(serviceId, status)` and `(status, triggeredAt)`. `Service` has `@@unique([projectId, name])` so the same service name can exist across tenants. The Prisma client uses the `@prisma/adapter-pg` driver adapter (Prisma 7's required path for native Node).
-
-**Docker-based local dev.** `docker compose up` brings up Postgres 16 on port `5435` (chosen to coexist with system Postgres installs on 5432–5434). Migrations and the seed run idempotently — `npm run db:reset` drops, migrates, and reseeds in a single command. The seed creates 3 users, 1 project, 1 stable demo API key, 6 services, 7 deployments, 8 grouped issues, 30 events, and 5 alerts so the dashboard is never empty.
+Total runtime: one Postgres container + one Next.js dev server. No cloud, no signup, no third-party services to wire up.
 
 ---
 
