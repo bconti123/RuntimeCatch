@@ -1,0 +1,23 @@
+# Build context exclusions for the runtimecatch-web image.
+node_modules
+.next
+prisma/generated
+
+# Local environment + git metadata.
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+
+# Editor + tooling caches.
+.vscode
+.idea
+.vercel
+*.tsbuildinfo
+*.log
+
+# Compose + Docker assets (not needed inside the image).
+.dockerignore
+Dockerfile
+docker-compose.yml

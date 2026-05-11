@@ -68,6 +68,40 @@ Total runtime: one Postgres container + one Next.js dev server. No cloud, no sig
 
 ---
 
+## Docker local development
+
+Everything (web + Postgres) runs in Docker, isolated from any other local stacks. Host port collisions are avoided by exposing Postgres on `5435` and the web app on `3000` — change the left side of either mapping in `docker-compose.yml` if those are taken.
+
+```bash
+docker compose up --build
+# in another terminal, once the web container is healthy:
+docker compose exec web npx prisma migrate dev
+docker compose exec web npm run db:seed
+```
+
+Then visit [localhost:3000](http://localhost:3000) and sign in with the demo credentials below.
+
+What the compose stack provides:
+
+- `runtimecatch-web` — Next.js dev server, bind-mounted for live reload, listening on host `:3000`.
+- `runtimecatch-postgres` — Postgres 16, exposed on host `:5435` so it doesn't collide with system Postgres or other projects.
+- Environment injected into the web container: `NODE_ENV=development`, `DATABASE_URL` (pointed at the `postgres` service on the compose network), and a `SESSION_SECRET` placeholder reserved for future auth wiring.
+- Named volumes for `node_modules`, `.next`, and `prisma/generated` so the container's installs never collide with whatever you have installed on the host.
+
+Useful commands:
+
+```bash
+docker compose logs -f web              # tail dev server output
+docker compose exec web sh              # shell into the web container
+docker compose exec web npm run simulate # stream events from inside the container
+docker compose down                     # stop (data persists in the pgdata volume)
+docker compose down -v                  # stop and wipe the database
+```
+
+Non-Docker development still works exactly as before — `npm run db:up` only starts the Postgres container, and `npm run dev` runs Next.js directly against `localhost:5435`.
+
+---
+
 ## API: `POST /api/events`
 
 ```bash

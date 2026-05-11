@@ -17,5 +17,37 @@ services:
       timeout: 5s
       retries: 10
 
+  web:
+    build: .
+    container_name: runtimecatch-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      # Inside the compose network the DB hostname is `postgres`, not localhost,
+      # and the internal port is 5432 (5435 is only the host-side mapping).
+      DATABASE_URL: postgresql://runtimecatch:runtimecatch@postgres:5432/runtimecatch?schema=public
+      # Forward-compat placeholder. Not consumed by the current auth code
+      # (sessions are opaque tokens stored in Postgres), but reserved so the
+      # Docker setup already exposes it when auth gains a signing key.
+      SESSION_SECRET: local-dev-session-secret-change-me
+    ports:
+      - "3000:3000"
+    volumes:
+      # Bind-mount source for live reload.
+      - .:/app
+      # Named volumes shadow the bind mount for paths that must stay
+      # container-local: node_modules has musl/glibc + Linux/macOS skew
+      # against the host, .next is a build cache, prisma/generated is
+      # produced by `prisma generate` inside the image.
+      - runtimecatch-node-modules:/app/node_modules
+      - runtimecatch-next-cache:/app/.next
+      - runtimecatch-prisma-generated:/app/prisma/generated
+
 volumes:
   runtimecatch-pgdata:
+  runtimecatch-node-modules:
+  runtimecatch-next-cache:
+  runtimecatch-prisma-generated:
