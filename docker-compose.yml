@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: runtimecatch
       POSTGRES_DB: runtimecatch
     ports:
-      - "5435:5432"
+      # Host side is configurable (POSTGRES_HOST_PORT, default 5435 to dodge
+      # system Postgres on 5432-5434); the container always listens on 5432.
+      - "${POSTGRES_HOST_PORT:-5435}:5432"
     volumes:
       - runtimecatch-pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -26,15 +28,19 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: development
-      # Inside the compose network the DB hostname is `postgres`, not localhost,
-      # and the internal port is 5432 (5435 is only the host-side mapping).
+      # Docker-internal database URL: inside the compose network the DB is
+      # reached at the *service name* `postgres` on the internal port 5432 —
+      # never `localhost`, never POSTGRES_HOST_PORT (that mapping only exists
+      # on the host). This deliberately overrides any DATABASE_URL in .env.
       DATABASE_URL: postgresql://runtimecatch:runtimecatch@postgres:5432/runtimecatch?schema=public
       # Forward-compat placeholder. Not consumed by the current auth code
       # (sessions are opaque tokens stored in Postgres), but reserved so the
       # Docker setup already exposes it when auth gains a signing key.
       SESSION_SECRET: local-dev-session-secret-change-me
     ports:
-      - "3000:3000"
+      # Host side is configurable (WEB_PORT, default 3000); the dev server
+      # always listens on 3000 inside the container.
+      - "${WEB_PORT:-3000}:3000"
     volumes:
       # Bind-mount source for live reload.
       - .:/app

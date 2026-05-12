@@ -70,9 +70,10 @@ Total runtime: one Postgres container + one Next.js dev server. No cloud, no sig
 
 ## Docker local development
 
-Everything (web + Postgres) runs in Docker, isolated from any other local stacks. Host port collisions are avoided by exposing Postgres on `5435` and the web app on `3000` — change the left side of either mapping in `docker-compose.yml` if those are taken.
+Everything (web + Postgres) runs in Docker, isolated from any other local stacks.
 
 ```bash
+cp .env.example .env          # ports + database config live here
 docker compose up --build
 # in another terminal, once the web container is healthy:
 docker compose exec web npx prisma migrate dev
@@ -81,14 +82,32 @@ docker compose exec web npm run db:seed
 
 Then visit [localhost:3000](http://localhost:3000) and sign in with the demo credentials below.
 
-What the compose stack provides:
+### Configuration (`.env`)
 
-- `runtimecatch-web` — Next.js dev server, bind-mounted for live reload, listening on host `:3000`.
-- `runtimecatch-postgres` — Postgres 16, exposed on host `:5435` so it doesn't collide with system Postgres or other projects.
-- Environment injected into the web container: `NODE_ENV=development`, `DATABASE_URL` (pointed at the `postgres` service on the compose network), and a `SESSION_SECRET` placeholder reserved for future auth wiring.
+Compose reads its host-side ports from `.env`:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `WEB_PORT` | `3000` | Host port the web app is published on → `http://localhost:${WEB_PORT}` |
+| `POSTGRES_HOST_PORT` | `5435` | Host port Postgres is published on (avoids clashing with a system Postgres on 5432-5434) |
+
+The containers always listen on their standard internal ports — web on `3000`, Postgres on `5432` — so changing the host ports never affects anything running *inside* the compose network.
+
+### Host vs. Docker-internal `DATABASE_URL`
+
+There are two database URLs, and which one applies depends on where the app process runs:
+
+- **Host URL** (`DATABASE_URL` in `.env`): used when the app runs on your machine (`npm run dev`). Connects via `localhost:${POSTGRES_HOST_PORT}` — i.e. the port the container publishes on the host. Keep this port in sync with `POSTGRES_HOST_PORT`.
+- **Docker-internal URL**: used when the app runs inside the compose network (`docker compose up`). Connects to the `postgres` *service name* on the container's internal port `5432` — never `localhost`, never `POSTGRES_HOST_PORT`. This URL is set on the `web` service in `docker-compose.yml` and overrides whatever `DATABASE_URL` is in `.env`, so you don't change anything to switch between the two modes.
+
+### What the compose stack provides
+
+- `runtimecatch-web` — Next.js dev server, bind-mounted for live reload, published on host `:${WEB_PORT}`.
+- `runtimecatch-postgres` — Postgres 16, published on host `:${POSTGRES_HOST_PORT}`.
+- Environment injected into the web container: `NODE_ENV=development`, the Docker-internal `DATABASE_URL` (the `postgres` service on the compose network), and a `SESSION_SECRET` placeholder reserved for future auth wiring.
 - Named volumes for `node_modules`, `.next`, and `prisma/generated` so the container's installs never collide with whatever you have installed on the host.
 
-Useful commands:
+### Useful commands
 
 ```bash
 docker compose logs -f web              # tail dev server output
@@ -98,7 +117,7 @@ docker compose down                     # stop (data persists in the pgdata volu
 docker compose down -v                  # stop and wipe the database
 ```
 
-Non-Docker development still works exactly as before — `npm run db:up` only starts the Postgres container, and `npm run dev` runs Next.js directly against `localhost:5435`.
+Non-Docker development still works exactly as before — `npm run db:up` only starts the Postgres container, and `npm run dev` runs Next.js directly against `localhost:${POSTGRES_HOST_PORT}` using the host `DATABASE_URL` from `.env`.
 
 ---
 
