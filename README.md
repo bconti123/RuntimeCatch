@@ -151,6 +151,56 @@ Responses: `201` with `{ eventId, issueId, fingerprint, occurrenceCount }`, `400
 
 ---
 
+## CLI — `runtimecatch`
+
+A small, dependency-free developer CLI for wiring a service into RuntimeCatch and firing test events without hand-writing curl. It's TypeScript (`cli/index.ts`) run through the locally-installed `tsx` — no build step, not published to npm.
+
+```bash
+runtimecatch init          # create / update .runtimecatchrc.json
+runtimecatch env           # print current config (API key masked)
+runtimecatch test          # send a simple INFO event to /api/events
+runtimecatch send-error    # send a sample ERROR event with stackTrace + metadata
+runtimecatch help          # list commands
+```
+
+To get the `runtimecatch` command on your PATH, run `npm link` once in this repo (it's declared as a `bin`, so `npm link` symlinks it globally). Prefer not to link? Every command also works through the package script — `npm run cli -- <command>` (e.g. `npm run cli -- test`).
+
+`init` prompts for and writes `.runtimecatchrc.json` in the current directory (gitignored — it holds an API key):
+
+```json
+{
+  "apiUrl": "http://localhost:3000",
+  "apiKey": "rc_live_demo_key_for_local_testing_only",
+  "service": "playback-service",
+  "environment": "development"
+}
+```
+
+`init` also accepts flags, which skip the matching prompt (handy for scripts / non-TTY shells):
+
+```bash
+runtimecatch init \
+  --api-url http://localhost:3000 \
+  --api-key rc_live_demo_key_for_local_testing_only \
+  --service playback-service \
+  --environment development
+```
+
+`test` and `send-error` POST to `${apiUrl}/api/events` with `Authorization: Bearer ${apiKey}`, using `service` from the config and stamping `environment` into the event's `metadata`. They print the request URL, HTTP status, and the JSON response (or the error body on a non-2xx). `env` prints the same config with the key masked (`rc_l…only (39 chars)`) so you can sanity-check it without leaking it into a terminal log.
+
+Quick end-to-end check against the local stack:
+
+```bash
+npm run db:up && npm run db:migrate && npm run db:seed   # seeds the demo key + services
+npm run dev                                              # in one terminal
+npm link                                                 # once, to get `runtimecatch` on PATH
+runtimecatch init                                        # apiKey: rc_live_demo_key_for_local_testing_only, service: playback-service
+runtimecatch test                                        # → 201, then watch it land on the dashboard
+runtimecatch send-error
+```
+
+---
+
 ## What I would build next
 
 Roughly ordered by what I think is most worth doing next, given the current shape of the codebase:
@@ -193,6 +243,7 @@ rc_live_demo_key_for_local_testing_only
 | `npm run db:seed` | Run `prisma/seed.ts` |
 | `npm run db:studio` | Open Prisma Studio |
 | `npm run simulate` | Stream realistic events into the DB |
+| `npm run cli -- <cmd>` | `runtimecatch` developer CLI without a global link (`init` / `env` / `test` / `send-error`) |
 
 ---
 

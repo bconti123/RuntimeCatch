@@ -157,3 +157,6 @@ next-env.d.ts
 
 # Prisma generated client
 /prisma/generated/
+
+# RuntimeCatch CLI local config (contains an API key)
+.runtimecatchrc.json
