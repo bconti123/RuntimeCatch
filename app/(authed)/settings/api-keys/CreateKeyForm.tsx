@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { createApiKeyAction, type CreateKeyState } from "./actions";
 
 const initial: CreateKeyState = {};
@@ -14,11 +14,10 @@ export function CreateKeyForm({
     createApiKeyAction,
     initial
   );
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    setCopied(false);
-  }, [state.plaintext]);
+  // Track which key value was copied so a freshly created key resets the label
+  // without an effect.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copied = copiedKey !== null && copiedKey === state.plaintext;
 
   if (projects.length === 0) {
     return (
@@ -83,7 +82,7 @@ export function CreateKeyForm({
               type="button"
               onClick={() => {
                 navigator.clipboard.writeText(state.plaintext!);
-                setCopied(true);
+                setCopiedKey(state.plaintext!);
               }}
               className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
             >

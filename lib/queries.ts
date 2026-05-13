@@ -127,6 +127,7 @@ export async function getCategoryBreakdown() {
     "DATABASE",
     "NETWORK",
     "AUTH",
+    "APP_EVENT",
   ];
   return order
     .map((cat) => ({

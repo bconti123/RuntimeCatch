@@ -44,6 +44,7 @@ enum EventCategory {
   DATABASE
   NETWORK
   AUTH
+  APP_EVENT
 }
 
 enum IssueStatus {

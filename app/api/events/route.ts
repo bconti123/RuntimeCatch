@@ -19,6 +19,7 @@ const CategoryEnum = z.enum([
   "DATABASE",
   "NETWORK",
   "AUTH",
+  "APP_EVENT",
 ]);
 
 const EventPayload = z.object({

@@ -19,6 +19,7 @@ const COLORS: Record<string, string> = {
   DATABASE: "#a855f7",
   NETWORK: "#3b82f6",
   AUTH: "#71717a",
+  APP_EVENT: "#22c55e",
 };
 
 export function CategoryBreakdownChart({
