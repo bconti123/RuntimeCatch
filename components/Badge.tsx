@@ -127,6 +127,7 @@ const CATEGORY_TONE: Record<EventCategory, Tone> = {
   DATABASE: "warning",
   NETWORK: "info",
   AUTH: "neutral",
+  APP_EVENT: "neutral",
 };
 
 export function CategoryBadge({ category }: { category: EventCategory }) {
