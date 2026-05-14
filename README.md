@@ -151,6 +151,69 @@ Responses: `201` with `{ eventId, issueId, fingerprint, occurrenceCount }`, `400
 
 ---
 
+## Integrating with another Next.js app
+
+A copy-paste-friendly example lives in [`examples/nextjs-app/`](./examples/nextjs-app). It uses the local TypeScript client SDK at `packages/runtimecatch-client` and shows the two paths most apps actually want: reporting a successful event from a server action, and reporting a caught exception from a route handler.
+
+The client needs four env vars:
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `RUNTIMECATCH_API_URL` | `http://localhost:3000` | Base URL of your RuntimeCatch instance |
+| `RUNTIMECATCH_API_KEY` | `rc_live_…` | Project API key (`/settings/api-keys`) |
+| `RUNTIMECATCH_SERVICE` | `playback-service` | Must exist in the API key's project |
+| `RUNTIMECATCH_ENVIRONMENT` | `development` | Free-form label, stamped into metadata |
+
+Configure once at module load, then capture from anywhere:
+
+```ts
+// lib/runtimecatch.ts
+import "server-only";
+import { configureRuntimeCatch } from "@runtimecatch/client";
+
+configureRuntimeCatch({
+  apiUrl: process.env.RUNTIMECATCH_API_URL!,
+  apiKey: process.env.RUNTIMECATCH_API_KEY!,
+  service: process.env.RUNTIMECATCH_SERVICE!,
+  environment: process.env.RUNTIMECATCH_ENVIRONMENT ?? "development",
+});
+
+export { captureEvent, captureException } from "@runtimecatch/client";
+```
+
+```ts
+// app/admin/actions.ts — successful server-action event
+"use server";
+import { captureEvent } from "@/lib/runtimecatch";
+
+export async function publishPost(formData: FormData) {
+  const title = String(formData.get("title") ?? "").trim();
+  // … persist …
+  await captureEvent("post.published", { title, userId: "usr_123" });
+}
+```
+
+```ts
+// app/api/widgets/route.ts — caught exception in a route handler
+import { NextResponse } from "next/server";
+import { captureException } from "@/lib/runtimecatch";
+
+export async function GET(request: Request) {
+  try {
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) throw new Error("Missing `id` query param");
+    return NextResponse.json({ id, name: "Example widget" });
+  } catch (err) {
+    await captureException(err, { route: "GET /api/widgets", url: request.url });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
+```
+
+The SDK isn't on npm yet — either vendor `packages/runtimecatch-client/dist/{index.js,index.d.ts}` into your app and re-point the imports, or install via a local path (`npm install file:…`). The example's `README.md` walks through both.
+
+---
+
 ## CLI — `runtimecatch`
 
 A small, dependency-free developer CLI for wiring a service into RuntimeCatch and firing test events without hand-writing curl. It's TypeScript (`cli/index.ts`) run through the locally-installed `tsx` — no build step, not published to npm.
@@ -198,6 +261,13 @@ runtimecatch init                                        # apiKey: rc_live_demo_
 runtimecatch test                                        # → 201, then watch it land on the dashboard
 runtimecatch send-error
 ```
+
+### Troubleshooting
+
+**`captureEvent` returns 200 from your app but nothing appears on the dashboard.**
+The SDK swallows delivery errors by default, so a 4xx from `/api/events` shows up as a silent no-op. The most common cause is a stale `EventCategory` enum — `APP_EVENT` (used by `captureEvent`) was added in migration `20260513200000_add_app_event_category`. If your local DB predates that migration, run `npm run db:migrate` (or `npx prisma migrate reset --force` if you don't mind losing data) and the seed will repopulate the demo project.
+
+To surface the underlying failure while debugging, pass `swallowErrors: false` to `configureRuntimeCatch` — the next bad payload throws instead of silently failing.
 
 ---
 
