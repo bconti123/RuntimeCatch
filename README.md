@@ -121,6 +121,40 @@ Non-Docker development still works exactly as before — `npm run db:up` only st
 
 ---
 
+## Production deployment (Railway)
+
+The repo ships with a `railway.json` so a `git push` to the linked branch builds with Nixpacks (the dev `Dockerfile` is intentionally skipped — it runs `next dev` and is local-only), then starts the app with `npm run start:prod`, which runs `prisma migrate deploy` immediately before `next start`. Migrations therefore apply on every deploy without a separate release step.
+
+### Required environment variables
+
+| Variable | Source | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | Postgres plugin | Reference it as `${{Postgres.DATABASE_URL}}` so the web service tracks the database connection string automatically. |
+| `NODE_ENV` | Railway | Set to `production` automatically. Enables `Secure` session cookies and Prisma's quieter log level. |
+| `SESSION_SECRET` | You | Forward-compat secret reserved for future session/CSRF signing. Not consumed by the current opaque-token auth, but set it now (e.g. `openssl rand -hex 32`) so a future change is just a re-deploy. |
+| `PORT` | Railway | Injected automatically. `next start` binds to it without further config. |
+
+### Setup steps
+
+1. **Push the repo to GitHub** if it isn't there already.
+2. **Create a new Railway project** → *Deploy from GitHub repo* → pick this repository. Railway provisions an empty web service.
+3. **Add a Postgres database** → *+ New* → *Database* → *Add PostgreSQL*. Wait for it to provision.
+4. **Set the web service variables** → open the web service → *Variables* tab:
+   - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (reference variable, no quotes)
+   - `SESSION_SECRET` = your generated value
+   - Leave `NODE_ENV` and `PORT` alone; Railway sets them.
+5. **Deploy.** Railway picks up `railway.json`, runs `npm ci` (which fires `postinstall` → `prisma generate`) and `npm run build`, then starts the container with `npm run start:prod`. The first start applies all migrations against the new database.
+6. **Seed the demo data (optional, one-shot).** From the web service's *Settings* tab pick *Run a command* (or `railway run` locally with the project linked) and execute `npm run db:seed`. Skip this if you intend to register your own users via `/login` after promoting one to `OWNER` directly in the database.
+7. **Generate a public URL** → web service → *Settings* → *Networking* → *Generate Domain*. Visit it, sign in, create an API key under `/settings/api-keys`, and point any SDK/CLI at the new origin.
+
+### Notes
+
+- `next start` already listens on `0.0.0.0:$PORT`, so no extra flags are needed.
+- The build container has access to the Postgres private network, but migrations intentionally run in the start command — this keeps the build infrastructure-agnostic and makes a failed migration crash the deploy loudly rather than silently produce a green build against an unmigrated DB.
+- `docker-compose.yml` and the local `Dockerfile` are ignored by Railway thanks to the `NIXPACKS` builder hint in `railway.json`; you can keep using them for local dev without affecting production.
+
+---
+
 ## API: `POST /api/events`
 
 ```bash
