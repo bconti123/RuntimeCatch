@@ -1,0 +1,1 @@
+{"v":1,"f":{".env.example":[{"s":"agent|claude(claude-opus-4-7)","l":["33-55"]}],"README.md":[{"s":"agent|claude(claude-opus-4-7)","l":["124-157"]}],"package.json":[{"s":"agent|claude(claude-opus-4-7)","l":["5-7",15,20]}],"railway.json":[{"s":"agent|claude(claude-opus-4-7)","l":["1-11"]}]}}
