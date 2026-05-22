@@ -7,8 +7,10 @@ name: Refresh demo data
 
 on:
   schedule:
-    # Weekly, Mondays 09:00 UTC. For ~biweekly instead, use: '0 9 1,15 * *'
-    - cron: "0 9 * * 1"
+    # Every 12 hours (00:00 and 12:00 UTC). The dashboard only shows the last
+    # 24 hours, so a 12h cadence keeps it populated with margin: a single
+    # missed/failed run still leaves the next one inside the window.
+    - cron: "0 */12 * * *"
   # Allow running on demand from the Actions tab.
   workflow_dispatch: {}
 
@@ -30,8 +32,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
 
-      - name: Inject 30s of fresh demo events
+      - name: Inject 2 min of fresh demo events
         run: npm run simulate
         env:
           DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
-          SIMULATE_DURATION_MS: "30000"
+          SIMULATE_DURATION_MS: "120000"
