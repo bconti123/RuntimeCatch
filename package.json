@@ -13,10 +13,11 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "start:prod": "prisma migrate deploy && next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "prisma migrate dev",

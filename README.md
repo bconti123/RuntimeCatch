@@ -151,11 +151,13 @@ docker compose down -v        # stop and wipe the database
 
 ---
 
-## Deployment (Railway)
+## CI/CD and Deployment
 
-RuntimeCatch is deployed on **Railway**: a web service plus a managed **PostgreSQL** service.
+**GitHub Actions** ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) runs on every push and pull request and must pass before changes ship. It installs with `npm ci`, generates the Prisma client, then runs `npm run lint`, `npm run typecheck`, and `npm run build` — so a broken lint, type error, or build failure is caught in CI rather than after it's live. The standalone [`examples/`](./examples) app is a copy-paste SDK sample, not part of the deployed build, and is excluded from both lint and typecheck.
 
-A `railway.json` builds with Nixpacks (the dev `Dockerfile` is local-only and intentionally skipped) and starts with `npm run start:prod`, which runs **`prisma migrate deploy`** immediately before `next start`. Migrations therefore apply on every deploy, with no separate release step.
+**Railway** auto-deploys from `main`: a web service plus a managed **PostgreSQL** service. A merge to `main` triggers a deploy once CI is green.
+
+A `railway.json` builds with **Nixpacks** (the local-only `Dockerfile.dev` is never used by Railway) and starts with `npm run start:prod`, which runs **`prisma migrate deploy`** immediately before `next start`. Migrations therefore apply on every deploy, with no separate release step. The production database **must** be Railway's managed Postgres (`${{Postgres.DATABASE_URL}}`) — never a `localhost` URL.
 
 **Required environment variables:**
 

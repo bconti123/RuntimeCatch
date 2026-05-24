@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone copy-paste SDK sample; not part of the deployed app and
+    // already excluded from typecheck (see tsconfig `exclude`). Keeping lint
+    // aligned means an example-only edit can't break the main app's CI.
+    "examples/**",
+    // Prisma's generated client.
+    "prisma/generated/**",
   ]),
 ]);
 

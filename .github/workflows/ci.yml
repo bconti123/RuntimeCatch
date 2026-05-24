@@ -1,0 +1,51 @@
+name: CI
+
+# Validates every push and pull request before it can reach Railway.
+# Railway auto-deploys from `main`, so a green build here is the gate that
+# keeps a broken lint / typecheck / build from shipping unnoticed.
+
+on:
+  push:
+  pull_request:
+
+# Cancel superseded runs on the same ref so only the latest commit is checked.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # prisma.config.ts throws if DATABASE_URL is unset, and `npm ci` runs
+      # `prisma generate` via the postinstall hook. No real database is
+      # contacted during lint/typecheck/build, so a placeholder URL is enough.
+      - name: Install dependencies
+        run: npm ci
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+
+      # Belt-and-suspenders: postinstall already generated the client, but a
+      # cached install can skip it, and typecheck/build both need the types.
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
