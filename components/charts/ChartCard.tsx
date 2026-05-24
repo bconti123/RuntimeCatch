@@ -21,7 +21,7 @@ export function ChartCard({
           <p className="mt-0.5 text-xs text-zinc-500">{subtitle}</p>
         ) : null}
       </div>
-      <div className="h-64">{children}</div>
+      <div className="h-64 w-full min-w-0">{children}</div>
     </div>
   );
 }
