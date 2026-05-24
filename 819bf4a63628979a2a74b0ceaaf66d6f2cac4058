@@ -1,0 +1,1 @@
+{"v":1,"f":{".github/workflows/ci.yml":[{"s":"agent|claude(claude-opus-4-7)","l":["1-51"]}],"README.md":[{"s":"agent|claude(claude-opus-4-7)","l":[154,156,"158-160"]}],"eslint.config.mjs":[{"s":"agent|claude(claude-opus-4-7)","l":["15-20"]},{"s":"unknown","l":["1-14","21-24"]}],"package.json":[{"s":"agent|claude(claude-opus-4-7)","l":[16,20]}]}}
