@@ -1,8 +1,8 @@
 name: Refresh demo data
 
-# Keeps the live demo dashboard looking active. The simulate script is
-# additive (it only inserts new runtime events with current timestamps for
-# the demo services — it never deletes), so this is safe to run on a
+# Keeps the live demo dashboard looking active. The backfill script is
+# additive (it only inserts new runtime events and lazily creates demo
+# services — it never deletes or resets), so this is safe to run on a
 # schedule even if real data ever lands in the database.
 
 on:
@@ -32,8 +32,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
 
-      - name: Inject 2 min of fresh demo events
-        run: npm run simulate
+      # Backfill spreads varied events across the trailing day so the whole
+      # 24h dashboard window stays populated (not just a cluster at run time).
+      - name: Backfill a day of varied demo events
+        run: npm run simulate:backfill
         env:
           DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
-          SIMULATE_DURATION_MS: "120000"
+          COUNT: "300"
+          DAYS: "1"

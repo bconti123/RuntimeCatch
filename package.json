@@ -27,6 +27,7 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "simulate": "tsx scripts/simulate-events.ts",
+    "simulate:backfill": "tsx scripts/simulate-backfill.ts",
     "cli": "tsx cli/index.ts",
     "postinstall": "prisma generate"
   },
