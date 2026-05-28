@@ -496,3 +496,68 @@ export async function ingestEvent(
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// Deployment history. The Deployment Frequency chart reads the `deployment`
+// table, which the event stream never writes to — so the backfill generates
+// plausible deploys here to keep that chart populated alongside the events.
+// ---------------------------------------------------------------------------
+export type GeneratedDeployment = {
+  service: string;
+  version: string;
+  commitSha: string;
+  environment: Environment;
+  deployedAt: Date;
+};
+
+function randomSha(): string {
+  let s = "";
+  for (let i = 0; i < 7; i++) s += "0123456789abcdef"[rint(0, 15)];
+  return s;
+}
+
+/**
+ * Produce a plausible deployment history for `serviceNames`, spread across the
+ * last `days`. Staging ships more often than production; versions climb over
+ * time. Returns deploys tagged by service name for the caller to map to IDs.
+ */
+export function generateDeployments(
+  serviceNames: Iterable<string>,
+  days: number,
+  now = Date.now()
+): GeneratedDeployment[] {
+  const windowMs = Math.max(1, days) * 24 * 60 * 60 * 1000;
+  const out: GeneratedDeployment[] = [];
+  for (const service of serviceNames) {
+    const environment = SERVICE_ENV[service] ?? Environment.PRODUCTION;
+    const count = environment === Environment.STAGING ? rint(4, 8) : rint(2, 5);
+    const times = Array.from(
+      { length: count },
+      () => now - Math.random() * windowMs
+    ).sort((a, b) => a - b);
+    let major = rint(1, 6);
+    let minor = rint(0, 20);
+    let patch = rint(0, 12);
+    for (const t of times) {
+      const roll = Math.random();
+      if (roll < 0.15) {
+        major++;
+        minor = 0;
+        patch = 0;
+      } else if (roll < 0.5) {
+        minor++;
+        patch = 0;
+      } else {
+        patch++;
+      }
+      out.push({
+        service,
+        version: `v${major}.${minor}.${patch}`,
+        commitSha: randomSha(),
+        environment,
+        deployedAt: new Date(t),
+      });
+    }
+  }
+  return out;
+}

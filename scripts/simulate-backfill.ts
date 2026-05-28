@@ -1,6 +1,7 @@
 /**
- * One-shot mass backfill: writes a large batch of historical events spread over
- * a past time range, then exits. Use this to populate charts/trends quickly —
+ * One-shot mass backfill: writes a large batch of historical events (plus a
+ * fresh batch of deployments for the Deployment Frequency chart) spread over a
+ * past time range, then exits. Use this to populate charts/trends quickly —
  * the live `npm run simulate` is for an ongoing realistic trickle.
  *
  *   npm run simulate:backfill                 # 2000 events over the last 7 days
@@ -17,6 +18,7 @@ import {
   renderEvent,
   resolveProject,
   makeServiceResolver,
+  generateDeployments,
   type RenderedEvent,
 } from "./event-source";
 
@@ -152,8 +154,23 @@ async function main() {
     console.log(`[backfill] inserted ${inserted}/${rows.length} events`);
   }
 
+  // Deployments aren't part of the event stream, so generate a fresh batch for
+  // every touched service to keep the Deployment Frequency chart populated.
+  const deployments = generateDeployments(serviceIdByName.keys(), days, now);
+  if (deployments.length > 0) {
+    await prisma.deployment.createMany({
+      data: deployments.map((d) => ({
+        serviceId: serviceIdByName.get(d.service)!,
+        version: d.version,
+        commitSha: d.commitSha,
+        environment: d.environment,
+        deployedAt: d.deployedAt,
+      })),
+    });
+  }
+
   console.log(
-    `[backfill] done — ${rows.length} events across ${byFingerprint.size} issues and ${serviceIdByName.size} services.`
+    `[backfill] done — ${rows.length} events across ${byFingerprint.size} issues and ${serviceIdByName.size} services, plus ${deployments.length} deployments.`
   );
 }
 
