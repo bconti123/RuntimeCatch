@@ -65,7 +65,7 @@ async function main() {
     prisma.user.create({
       data: {
         email: "owner@runtimecatch.dev",
-        name: "Avery Chen",
+        name: "Owner Account",
         role: Role.OWNER,
         passwordHash: await hashPassword("runtimecatch"),
       },
