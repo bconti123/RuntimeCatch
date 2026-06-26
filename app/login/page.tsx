@@ -34,8 +34,8 @@ export default async function LoginPage() {
 
         <div className="mt-6 rounded-md border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-500">
           <div className="font-medium text-zinc-300">Demo credentials</div>
-          <div className="mt-1 font-mono">owner@runtimecatch.dev</div>
-          <div className="font-mono">runtimecatch</div>
+          <div className="mt-1 font-mono">Username: owner@runtimecatch.dev</div>
+          <div className="font-mono">Password: runtimecatch</div>
         </div>
       </div>
     </div>
